@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Highway Runner - Pro Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #090d16;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #3b82f6;
+        }
+        canvas {
+            display: block;
+            background: #0f172a;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            color: #38bdf8;
+        }
+        .menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 38px;
+            background: linear-gradient(to right, #38bdf8, #818cf8, #f43f5e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+        p {
+            color: #94a3b8;
+            margin-bottom: 20px;
+            text-align: center;
+            max-width: 480px;
+            font-size: 15px;
+        }
+        .char-select {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .char-btn {
+            background: #1e293b;
+            border: 3px solid #475569;
+            border-radius: 12px;
+            padding: 12px 18px;
+            color: white;
+            cursor: pointer;
+            font-size: 32px;
+            transition: all 0.2s;
+        }
+        .char-btn.selected {
+            border-color: #38bdf8;
+            background: #0284c7;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+        }
+        .btn {
+            background: linear-gradient(135deg, #0284c7, #4f46e5);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.5);
+            margin: 6px;
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.8);
+        }
+        .controls-hint {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="550"></canvas>
+        
+        <div class="ui-layer">
+            <div class="hud" id="hud" style="display: none;">
+                <div>Рахунок: <span id="scoreVal">0</span></div>
+                <div>Щит: <span id="shieldVal">❌</span></div>
+                <div>Рекорд: <span id="highScoreVal">0</span></div>
+            </div>
+        </div>
+
+        <div id="menuScreen" class="menu-screen">
+            <h1>NEON HIGHWAY RUNNER</h1>
+            <p>Обирайте потужне авто, оминайте гігантські валуни та зустрічні машини, збирайте зірки й щити!</p>
+            
+            <div style="font-size: 15px; color: #cbd5e1; margin-bottom: 8px; font-weight: bold;">Оберіть транспорт:</div>
+            <div class="char-select">
+                <button class="char-btn selected" onclick="selectChar('🏎️', '#38bdf8')">🏎️</button>
+                <button class="char-btn" onclick="selectChar('🚙', '#f43f5e')">🚙</button>
+                <button class="char-btn" onclick="selectChar('🏍️', '#10b981')">🏍️</button>
+                <button class="char-btn" onclick="selectChar('🚀', '#eab308')">🚀</button>
+            </div>
+
+            <button class="btn" onclick="startGame(1)">Гра на одного</button>
+            <button class="btn" onclick="startGame(2)">Гра на двох (Co-op)</button>
+            <div class="controls-hint">
+                Гравець 1: Стрілки Вгору / Вниз або Миша<br>
+                Гравець 2 (Режим на двох): Клавіші W / S
+            </div>
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameState = 'MENU';
+let score = 0;
+let highScore = localStorage.getItem('highway_highscore_v3') || 0;
+let gameMode = 1;
+let dayNightTimer = 0;
+let isNight = false;
+
+let selectedEmoji = '🏎️';
+let selectedColor = '#38bdf8';
+
+function selectChar(emoji, color) {
+    selectedEmoji = emoji;
+    selectedColor = color;
+    document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('selected'));
+    event.target.classList.add('selected');
+}
+
+// Ефекти траси та середовища
+let scenery = [];
+for(let i=0; i<15; i++) {
+    scenery.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() < 0.5 ? 25 : canvas.height - 35,
+        type: Math.random() < 0.5 ? '🌲' : '🏢',
+        speed: 4
+    });
+}
+
+let players = [];
+let obstacles = [];
+let items = [];
+let roadLinesOffset = 0;
+
+let mouseControl = false;
+let mouseY = 275;
+window.addEventListener('mousemove', e => {
+    mouseControl = true;
+    const rect = canvas.getBoundingClientRect();
+    mouseY = e.clientY - rect.top;
+});
+
+function startGame(mode) {
+    gameMode = mode;
+    score = 0;
+    obstacles = [];
+    items = [];
+    dayNightTimer = 0;
+    isNight = false;
+    
+    players = [
+        { 
+            x: 120, y: 220, width: 75, height: 45, 
+            color: selectedColor, emoji: selectedEmoji, 
+            shield: false, shieldTimer: 0, 
+            upKey: 'ArrowUp', downKey: 'ArrowDown', alive: true 
+        }
+    ];
+
+    if (gameMode === 2) {
+        players.push(
+            { 
+                x: 120, y: 380, width: 75, height: 45, 
+                color: '#f43f5e', emoji: '🚙', 
+                shield: false, shieldTimer: 0, 
+                upKey: 'KeyW', downKey: 'KeyS', alive: true 
+            }
+        );
+    }
+
+    gameState = 'PLAYING';
+    document.getElementById('menuScreen').style.display = 'none';
+    document.getElementById('hud').style.display = 'flex';
+}
+
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; mouseControl = false; });
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    score += 0.2;
+    dayNightTimer += 0.03;
+    if (dayNightTimer > 120) {
+        isNight = !isNight;
+        dayNightTimer = 0;
+    }
+
+    roadLinesOffset += 10;
+    if (roadLinesOffset > 50) roadLinesOffset = 0;
+
+    // Рух елементів узбіччя (дерева, будинки)
+    scenery.forEach(s => {
+        s.x -= s.speed;
+        if (s.x < -40) {
+            s.x = canvas.width + 40;
+            s.y = Math.random() < 0.5 ? 25 : canvas.height - 35;
+        }
+    });
+
+    // Генерація якісних перешкод (кам'яні брили 🪨, зустрічні авто 🚚, конуси 🚧)
+    if (Math.random() < 0.022) {
+        let obsTypes = [
+            { emoji: '🪨', w: 55, h: 50 },
+            { emoji: '🚚', w: 85, h: 45 },
+            { emoji: '🚧', w: 50, h: 40 },
+            { emoji: '🚗', w: 75, h: 42 }
+        ];
+        let chosen = obsTypes[Math.floor(Math.random() * obsTypes.length)];
+        obstacles.push({
+            x: canvas.width,
+            y: Math.random() * (canvas.height - 180) + 70,
+            width: chosen.w,
+            height: chosen.h,
+            emoji: chosen.emoji,
+            speed: 6 + Math.floor(score / 150)
+        });
+    }
+
+    // Генерація бонусів (⭐, 🛡️, 💣)
+    if (Math.random() < 0.025) {
+        let bonusTypes = ['star', 'star', 'shield', 'mine'];
+        let t = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+        items.push({
+            x: canvas.width,
+            y: Math.random() * (canvas.height - 160) + 70,
+            width: 40,
+            height: 40,
+            type: t,
+            speed: 5
+        });
+    }
+
+    // Рух перешкод
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].x -= obstacles[i].speed;
+        if (obstacles[i].x + obstacles[i].width < 0) obstacles.splice(i, 1);
+    }
+
+    // Рух бонусів
+    for (let i = items.length - 1; i >= 0; i--) {
+        items[i].x -= items[i].speed;
+        if (items[i].x + items[i].width < 0) items.splice(i, 1);
+    }
+
+    // Керування та колізії гравців
+    let allDead = true;
+    players.forEach((p, idx) => {
+        if (!p.alive) return;
+        allDead = false;
+
+        if (p.shieldTimer > 0) {
+            p.shieldTimer--;
+            if (p.shieldTimer === 0) p.shield = false;
+        }
+
+        if (idx === 0 && mouseControl) {
+            p.y = mouseY - p.height / 2;
+        } else {
+            if (keys[p.upKey]) p.y -= 7;
+            if (keys[p.downKey]) p.y += 7;
+        }
+
+        // Обмеження трасою
+        if (p.y < 60) p.y = 60;
+        if (p.y > canvas.height - 100) p.y = canvas.height - 100;
+
+        // Зіткнення з перешкодами
+        obstacles.forEach(obs => {
+            if (p.x < obs.x + obs.width && p.x + p.width > obs.x &&
+                p.y < obs.y + obs.height && p.y + p.height > obs.y) {
+                if (p.shield) {
+                    p.shield = false;
+                    p.shieldTimer = 0;
+                    obs.x = -200; // Знищуємо перешкоду щитом
+                } else {
+                    p.alive = false;
+                }
+            }
+        });
+
+        // Підбір бонусів
+        items.forEach((item, itemIdx) => {
+            if (p.x < item.x + item.width && p.x + p.width > item.x &&
+                p.y < item.y + item.height && p.y + p.height > item.y) {
+                
+                if (item.type === 'star') {
+                    score += 50;
+                } else if (item.type === 'shield') {
+                    p.shield = true;
+                    p.shieldTimer = 350; // Щит на ~6 секунд
+                } else if (item.type === 'mine') {
+                    score = Math.max(0, score - 40);
+                }
+                items.splice(itemIdx, 1);
+            }
+        });
+    });
+
+    if (allDead) {
+        gameState = 'GAMEOVER';
+        if (Math.floor(score) > highScore) {
+            highScore = Math.floor(score);
+            localStorage.setItem('highway_highscore_v3', highScore);
+        }
+        document.getElementById('menuScreen').style.display = 'flex';
+        document.querySelector('#menuScreen h1').innerText = 'ГРУ ЗАВЕРШЕНО';
+        document.querySelector('#menuScreen p').innerText = `Фінальний рахунок: ${Math.floor(score)}`;
+    }
+}
+
+function draw() {
+    // Колір неба (зміна день/ніч)
+    ctx.fillStyle = isNight ? '#050811' : '#1e3a8a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Узбіччя (трава / місто)
+    ctx.fillStyle = isNight ? '#064e3b' : '#15803d';
+    ctx.fillRect(0, 50, canvas.width, canvas.height - 100);
+
+    // Сама дорога (асфальт)
+    ctx.fillStyle = isNight ? '#0f172a' : '#334155';
+    ctx.fillRect(0, 80, canvas.width, canvas.height - 160);
+
+    // Дорожня розмітка (білі смуги)
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([35, 30]);
+    ctx.beginPath();
+    ctx.moveTo(-roadLinesOffset, canvas.height / 2);
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Рендер об'єктів узбіччя
+    scenery.forEach(s => {
+        ctx.font = '28px sans-serif';
+        ctx.fillText(s.type, s.x, s.y + 15);
+    });
+
+    // Рендер перешкод (кам'яні брили та машини)
+    obstacles.forEach(obs => {
+        ctx.font = '38px sans-serif';
+        ctx.fillText(obs.emoji, obs.x, obs.y + 32);
+    });
+
+    // Рендер бонусів
+    items.forEach(item => {
+        ctx.font = '32px sans-serif';
+        let icon = '⭐';
+        if (item.type === 'shield') icon = '🛡️';
+        if (item.type === 'mine') icon = '💣';
+        ctx.fillText(icon, item.x, item.y + 28);
+    });
+
+    // Рендер гравців (великі, красиві машини, розгорнуті в правильний бік)
+    players.forEach(p => {
+        if (!p.alive) return;
+        
+        // Світіння під машиною при щиті
+        if (p.shield) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(p.x - 6, p.y - 6, p.width + 12, p.height + 12);
+        }
+
+        ctx.font = '42px sans-serif';
+        ctx.fillText(p.emoji, p.x, p.y + 34);
+    });
+
+    // Оновлення HUD
+    document.getElementById('scoreVal').innerText = Math.floor(score);
+    document.getElementById('shieldVal').innerText = players[0] && players[0].shield ? '✅ Активний' : '❌';
+    document.getElementById('highScoreVal').innerText = highScore;
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
